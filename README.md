@@ -1,1 +1,3 @@
-# price-monitor-ma
+# Price Monitor MA
+
+Open-source Moroccan price tracker.
