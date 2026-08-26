@@ -1,0 +1,32 @@
+app:
+  database_path: data/prices.db
+  currency: MAD
+  timezone: Africa/Casablanca
+  log_level: INFO
+
+http:
+  timeout_seconds: 20
+  connect_timeout_seconds: 10
+  retries: 2
+  retry_backoff_seconds: 1.5
+  delay_between_requests_seconds: 1.0
+  user_agent: "price-monitor-ma/1.0 (+https://github.com/adilpwc/price-monitor-ma)"
+
+matching:
+  minimum_score: 72
+  token_score_weight: 0.65
+  ratio_score_weight: 0.35
+
+alerts:
+  enabled: true
+  significant_change_percent: 2.0
+  significant_change_mad: 50
+  notify_back_in_stock: true
+
+scrapers:
+  ultrapc:
+    enabled: true
+    base_url: "https://www.ultrapc.ma"
+    search_path: "/recherche"
+    query_parameter: "s"
+    max_results: 20

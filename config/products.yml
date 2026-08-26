@@ -1,3 +1,8 @@
 products:
-  - name: "Samsung S25 Ultra"
-    max_price: 12000
+  - name: "Lenovo Legion 27U-10"
+    max_price: 4500
+    enabled: true
+    aliases:
+      - "Lenovo Legion 27U 10"
+    required_tokens: ["lenovo", "legion", "27u", "10"]
+    excluded_tokens: []
