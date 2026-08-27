@@ -50,7 +50,7 @@ def run(settings_path: str, products_path: str, dry_run: bool = False) -> int:
                     continue
                 for offer in offers:
                     repository.add_offer(product_id, offer)
-                    stats = repository.stats(product_id, offer.site)
+                    stats = repository.stats(product_id, offer.site, offer.url)
                     decision = repository.alert_decision(
                         product_id, product, offer,
                         settings.alerts.significant_change_percent,
