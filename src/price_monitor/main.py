@@ -56,8 +56,8 @@ def run(settings_path: str, products_path: str, dry_run: bool = False) -> int:
                         settings.alerts.significant_change_percent,
                         settings.alerts.significant_change_mad,
                     )
-                    LOG.info("%s: %s MAD, disponible=%s, score=%.1f, alerte=%s",
-                             offer.title, offer.price, offer.available, offer.match_score, decision.reason)
+                    LOG.info("%s: %s MAD, disponible=%s, score=%.1f, alerte=%s, URL: %s",
+                             offer.title, offer.price, offer.available, offer.match_score, decision.reason, offer.url)
                     if settings.alerts.enabled and decision.should_notify:
                         message = notifier.build_message(product, offer, stats)
                         if dry_run:
