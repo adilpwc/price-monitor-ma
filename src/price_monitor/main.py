@@ -8,6 +8,7 @@ from .config import ConfigError, load_products, load_settings
 from .notifications.telegram import TelegramNotifier
 from .scrapers.base import ScraperError
 from .scrapers.ultrapc import UltraPCScraper
+from .scrapers.jumia import JumiaScraper
 from .scrapers.micromagma import MicroMagmaScraper
 from .storage import PriceRepository
 
@@ -28,6 +29,7 @@ def run(settings_path: str, products_path: str, dry_run: bool = False) -> int:
     scrapers = [
         UltraPCScraper(settings.ultrapc, settings.http, settings.matching),
         MicroMagmaScraper(settings.micromagma, settings.http, settings.matching),
+    JumiaScraper(settings.jumia, settings.http, settings.matching),  # ← AJOUTER        
     ]
     
     notifier = TelegramNotifier()
