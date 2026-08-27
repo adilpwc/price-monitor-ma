@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urljoin
 
 import httpx
@@ -9,7 +10,6 @@ import httpx
 from ..config import HttpSettings, MatchingSettings, ScraperSettings
 from ..matching import is_match
 from ..models import Offer, ProductConfig
-from ..parsing import parse_price
 from .base import BaseScraper, ScraperError
 
 LOG = logging.getLogger(__name__)
@@ -131,9 +131,14 @@ class MicroMagmaScraper(BaseScraper):
                 continue
             
             try:
-                # Convertir en Decimal via parse_price
-                price = parse_price(str(price_to_use))
-            except ValueError as e:
+                # Convertir directement en Decimal sans passer par parse_price
+                # car le prix est déjà un nombre (int/float) du JSON
+                if isinstance(price_to_use, (int, float)):
+                    price = Decimal(str(price_to_use)).quantize(Decimal("0.01"))
+                else:
+                    # Si c'est une string, essayer de la parser
+                    price = Decimal(str(price_to_use)).quantize(Decimal("0.01"))
+            except (ValueError, InvalidOperation) as e:
                 LOG.debug("Prix MicroMagma illisible pour %s: %s - %s", title, price_to_use, e)
                 continue
             
@@ -152,7 +157,7 @@ class MicroMagmaScraper(BaseScraper):
             )
             results.append(offer)
             
-            LOG.debug("MicroMagma trouvé: %s - %s MAD (promo: %s) - URL: %s", 
+            LOG.debug("MicroMagma trouvé: %s - Prix: %s MAD (Promo: %s MAD) - URL: %s", 
                       title, price_normal, price_promo, url)
         
         return results
