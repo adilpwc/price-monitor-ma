@@ -34,6 +34,6 @@ scrapers:
   micromagma:
     enabled: true
     base_url: "https://micromagma.ma"
-    search_path: "/search"
+    search_path: "/categorie/laptops"
     query_parameter: "q"
     max_results: 20
