@@ -1,6 +1,6 @@
 products:
   - name: "MacBook Air M2"
-    max_price: 17500
+    max_price: 10000
     enabled: true
     aliases:
       - "MacBook Air M2"
