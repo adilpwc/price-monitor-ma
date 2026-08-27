@@ -50,15 +50,28 @@ class MicroMagmaScraper(BaseScraper):
         if not self.settings.enabled:
             return []
         
+        # Construire l'URL de la catégorie laptops
         url = urljoin(self.settings.base_url + "/", self.settings.search_path.lstrip("/"))
-        response = self._get(url, {self.settings.query_parameter: product.name})
+        
+        # Optionnel : ajouter le paramètre de recherche s'il existe
+        params = {}
+        if self.settings.query_parameter:
+            params = {self.settings.query_parameter: product.name}
+        
+        try:
+            response = self._get(url, params if params else None)
+        except ScraperError:
+            raise
+        
         offers = self.parse_html(response.text, product)
         
+        # Dédupliquer par URL
         unique: dict[str, Offer] = {}
         for offer in offers:
             existing = unique.get(offer.url)
             if existing is None or offer.match_score > existing.match_score:
                 unique[offer.url] = offer
+        
         return sorted(unique.values(), key=lambda x: (x.price, -x.match_score))[:self.settings.max_results]
 
     def parse_html(self, html: str, product: ProductConfig) -> list[Offer]:
@@ -70,8 +83,9 @@ class MicroMagmaScraper(BaseScraper):
         """Parse les cartes produits de MicroMagma"""
         results: list[Offer] = []
         
-        # Sélecteurs communs pour les cartes produits
-        selectors = "div.product-item, div.product-card, li.product, article.product"
+        # Sélecteurs pour les produits MicroMagma
+        # À adapter selon le HTML réel du site
+        selectors = "div.product-item, div.product-card, li.product, article.product, div[class*='product']"
         
         for card in soup.select(selectors):
             # Récupérer le titre
@@ -81,7 +95,7 @@ class MicroMagmaScraper(BaseScraper):
             title = title_el.get_text(strip=True)
             
             # Récupérer le prix
-            price_el = card.select_one(".price, .product-price, [data-price], .prix")
+            price_el = card.select_one(".price, .product-price, [data-price], .prix, span[class*='price']")
             if not price_el:
                 continue
             
@@ -89,7 +103,7 @@ class MicroMagmaScraper(BaseScraper):
             try:
                 price = parse_price(price_text)
             except ValueError:
-                LOG.warning("Prix MicroMagma illisible pour %s: %s", title, price_text)
+                LOG.debug("Prix MicroMagma illisible pour %s: %s", title, price_text)
                 continue
             
             # Vérifier le matching
@@ -107,7 +121,7 @@ class MicroMagmaScraper(BaseScraper):
             
             # Déterminer la disponibilité
             text = card.get_text(" ", strip=True).lower()
-            unavailable = any(x in text for x in ("rupture", "stock épuisé", "indisponible", "out of stock"))
+            unavailable = any(x in text for x in ("rupture", "stock épuisé", "indisponible", "out of stock", "rupture de stock"))
             
             # Récupérer l'image (optionnel)
             image_el = card.select_one("img")
