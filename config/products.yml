@@ -7,5 +7,5 @@ products:
       - "MacBook Air 2022"
       - "MacBook Air 13"
       - "Apple MacBook Air M2"
-    required_tokens: ["MacBook", "Air"]  # ← Seulement les vrais tokens
-    excluded_tokens: ["pro", "M1", "M3", "M4"]  # ← Pour éviter les autres modèles
+    required_tokens: ["MacBook", "Air", "M2"]
+    excluded_tokens: ["pro", "M1", "M3", "M4"]
