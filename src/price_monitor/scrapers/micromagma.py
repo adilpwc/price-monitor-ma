@@ -50,20 +50,27 @@ class MicroMagmaScraper(BaseScraper):
         if not self.settings.enabled:
             return []
         
-        # Construire l'URL de la catégorie laptops
-        url = urljoin(self.settings.base_url + "/", self.settings.search_path.lstrip("/"))
+        # Construire l'URL de l'API
+        api_url = urljoin(self.settings.base_url + "/", "api/products/criteria")
         
-        # Optionnel : ajouter le paramètre de recherche s'il existe
-        params = {}
-        if self.settings.query_parameter:
-            params = {self.settings.query_parameter: product.name}
+        # Paramètres de la requête
+        params = {
+            self.settings.query_parameter: product.name,
+            "page": "0",
+            "size": str(self.settings.max_results),
+        }
         
         try:
-            response = self._get(url, params if params else None)
+            response = self._get(api_url, params)
         except ScraperError:
             raise
         
-        offers = self.parse_html(response.text, product)
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise ScraperError(f"Réponse JSON invalide de MicroMagma: {exc}") from exc
+        
+        offers = self.parse_json(data, product)
         
         # Dédupliquer par URL
         unique: dict[str, Offer] = {}
@@ -74,36 +81,23 @@ class MicroMagmaScraper(BaseScraper):
         
         return sorted(unique.values(), key=lambda x: (x.price, -x.match_score))[:self.settings.max_results]
 
-    def parse_html(self, html: str, product: ProductConfig) -> list[Offer]:
-        soup = BeautifulSoup(html, "html.parser")
-        offers = self._parse_product_cards(soup, product)
-        return offers
-
-    def _parse_product_cards(self, soup: BeautifulSoup, product: ProductConfig) -> list[Offer]:
-        """Parse les cartes produits de MicroMagma"""
+    def parse_json(self, data: dict, product: ProductConfig) -> list[Offer]:
+        """Parse la réponse JSON de l'API MicroMagma"""
         results: list[Offer] = []
         
-        # Sélecteurs pour les produits MicroMagma
-        # À adapter selon le HTML réel du site
-        selectors = "div.product-item, div.product-card, li.product, article.product, div[class*='product']"
+        # Accéder à la liste des produits
+        products = data.get("products", [])
+        if not isinstance(products, list):
+            LOG.warning("Structure JSON inattendue de MicroMagma")
+            return results
         
-        for card in soup.select(selectors):
-            # Récupérer le titre
-            title_el = card.select_one("h2, h3, .product-name, .product-title, a.product-link")
-            if not title_el:
-                continue
-            title = title_el.get_text(strip=True)
-            
-            # Récupérer le prix
-            price_el = card.select_one(".price, .product-price, [data-price], .prix, span[class*='price']")
-            if not price_el:
+        for item in products:
+            if not isinstance(item, dict):
                 continue
             
-            price_text = price_el.get("data-price") or price_el.get_text(strip=True)
-            try:
-                price = parse_price(price_text)
-            except ValueError:
-                LOG.debug("Prix MicroMagma illisible pour %s: %s", title, price_text)
+            # Extraire le titre
+            title = str(item.get("name", "")).strip()
+            if not title:
                 continue
             
             # Vérifier le matching
@@ -111,30 +105,45 @@ class MicroMagmaScraper(BaseScraper):
             if not matched:
                 continue
             
-            # Récupérer l'URL du produit
-            link_el = card.select_one("a[href]")
-            if not link_el:
+            # Extraire le prix
+            price_data = item.get("price")
+            if price_data is None:
                 continue
-            href = link_el.get("href")
-            if not href:
+            
+            try:
+                price = parse_price(str(price_data))
+            except ValueError:
+                LOG.debug("Prix MicroMagma illisible pour %s: %s", title, price_data)
                 continue
+            
+            # Extraire l'URL du produit
+            url = str(item.get("url", "")).strip()
+            if not url:
+                url = str(item.get("link", "")).strip()
+            if not url:
+                url = f"{self.settings.base_url}/product/{item.get('id', '')}"
+            if not url or url.endswith("/"):
+                continue
+            
+            # Rendre l'URL absolue
+            url = urljoin(self.settings.base_url, url)
             
             # Déterminer la disponibilité
-            text = card.get_text(" ", strip=True).lower()
-            unavailable = any(x in text for x in ("rupture", "stock épuisé", "indisponible", "out of stock", "rupture de stock"))
+            available = item.get("available", True)
+            if isinstance(available, str):
+                available = available.lower() not in ("false", "0", "no", "unavailable", "out of stock")
             
-            # Récupérer l'image (optionnel)
-            image_el = card.select_one("img")
-            image_url = None
-            if image_el:
-                image_url = image_el.get("data-src") or image_el.get("src")
-                if image_url:
-                    image_url = urljoin(self.settings.base_url, str(image_url))
+            # Extraire l'image (optionnel)
+            image_url = str(item.get("image", "")).strip() or str(item.get("imageUrl", "")).strip()
+            if image_url:
+                image_url = urljoin(self.settings.base_url, image_url)
+            else:
+                image_url = None
             
             # Créer l'offre
             results.append(Offer(
-                product.name, title, self.name, price, "MAD", not unavailable,
-                urljoin(self.settings.base_url, str(href)), image_url, score
+                product.name, title, self.name, price, "MAD", available,
+                url, image_url, score
             ))
         
         return results
