@@ -30,10 +30,17 @@ scrapers:
     search_path: "/recherche"
     query_parameter: "s"
     max_results: 20
- 
+  
   micromagma:
     enabled: true
     base_url: "https://micromagma.ma"
     search_path: "/api/products/criteria"
     query_parameter: "search"
+    max_results: 20
+  
+  jumia:
+    enabled: true
+    base_url: "https://www.jumia.ma"
+    search_path: "/catalog/"
+    query_parameter: "q"
     max_results: 20
