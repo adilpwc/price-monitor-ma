@@ -30,3 +30,10 @@ scrapers:
     search_path: "/recherche"
     query_parameter: "s"
     max_results: 20
+ 
+  micromagma:
+    enabled: true
+    base_url: "https://micromagma.ma"
+    search_path: "/search"
+    query_parameter: "q"
+    max_results: 20
