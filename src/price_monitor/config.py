@@ -59,6 +59,7 @@ class Settings:
     matching: MatchingSettings
     alerts: AlertSettings
     ultrapc: ScraperSettings
+    micromagma: ScraperSettings
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
@@ -76,6 +77,7 @@ def load_settings(path: str | Path | None = None) -> Settings:
     try:
         app, http, matching = raw["app"], raw["http"], raw["matching"]
         alerts, ultra = raw["alerts"], raw["scrapers"]["ultrapc"]
+        micro = raw["scrapers"]["micromagma"]
         token_weight = float(matching["token_score_weight"])
         ratio_weight = float(matching["ratio_score_weight"])
         if abs(token_weight + ratio_weight - 1.0) > 0.001:
@@ -101,6 +103,10 @@ def load_settings(path: str | Path | None = None) -> Settings:
             ultrapc=ScraperSettings(
                 bool(ultra["enabled"]), str(ultra["base_url"]).rstrip("/"),
                 str(ultra["search_path"]), str(ultra["query_parameter"]), int(ultra["max_results"]),
+            ),
+            micromagma=ScraperSettings(
+                bool(micro["enabled"]), str(micro["base_url"]).rstrip("/"),
+                str(micro["search_path"]), str(micro["query_parameter"]), int(micro["max_results"]),
             ),
         )
     except (KeyError, TypeError, ValueError, InvalidOperation) as exc:
