@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import logging
+import time
 
 from .config import ConfigError, load_products, load_settings
 from .notifications.telegram import TelegramNotifier
 from .scrapers.base import ScraperError
 from .scrapers.ultrapc import UltraPCScraper
+from .scrapers.micromagma import MicroMagmaScraper
 from .storage import PriceRepository
 
 LOG = logging.getLogger("price_monitor")
@@ -21,48 +23,60 @@ def run(settings_path: str, products_path: str, dry_run: bool = False) -> int:
     products = load_products(products_path)
     repository = PriceRepository(settings.database_path)
     repository.initialize()
-    scraper = UltraPCScraper(settings.ultrapc, settings.http, settings.matching)
+    
+    # Créer les scrapers
+    scrapers = [
+        UltraPCScraper(settings.ultrapc, settings.http, settings.matching),
+        MicroMagmaScraper(settings.micromagma, settings.http, settings.matching),
+    ]
+    
     notifier = TelegramNotifier()
     errors = 0
     try:
         for product in products:
             product_id = repository.upsert_product(product)
-            LOG.info("Recherche de %s sur UltraPC", product.name)
-            try:
-                offers = scraper.search(product)
-            except ScraperError:
-                LOG.exception("Échec du scraper UltraPC pour %s", product.name)
-                errors += 1
-                continue
-            if not offers:
-                LOG.info("Aucune offre pertinente trouvée pour %s", product.name)
-                continue
-            for offer in offers:
-                repository.add_offer(product_id, offer)
-                stats = repository.stats(product_id, offer.site)
-                decision = repository.alert_decision(
-                    product_id, product, offer,
-                    settings.alerts.significant_change_percent,
-                    settings.alerts.significant_change_mad,
-                )
-                LOG.info("%s: %s MAD, disponible=%s, score=%.1f, alerte=%s",
-                         offer.title, offer.price, offer.available, offer.match_score, decision.reason)
-                if settings.alerts.enabled and decision.should_notify:
-                    message = notifier.build_message(product, offer, stats)
-                    if dry_run:
-                        LOG.info("Mode dry-run, notification non envoyée:\n%s", message)
-                    elif notifier.configured:
-                        try:
-                            notifier.send(message)
-                            repository.mark_alerted(product_id, offer)
-                        except Exception:
-                            LOG.exception("Échec de notification Telegram")
-                            errors += 1
-                    else:
-                        LOG.warning("Telegram non configuré; alerte non envoyée")
+            for scraper in scrapers:
+                if not scraper.settings.enabled:
+                    continue
+                LOG.info("Recherche de %s sur %s", product.name, scraper.name)
+                try:
+                    offers = scraper.search(product)
+                except ScraperError:
+                    LOG.exception("Échec du scraper %s pour %s", scraper.name, product.name)
+                    errors += 1
+                    continue
+                if not offers:
+                    LOG.info("Aucune offre pertinente trouvée pour %s sur %s", product.name, scraper.name)
+                    continue
+                for offer in offers:
+                    repository.add_offer(product_id, offer)
+                    stats = repository.stats(product_id, offer.site)
+                    decision = repository.alert_decision(
+                        product_id, product, offer,
+                        settings.alerts.significant_change_percent,
+                        settings.alerts.significant_change_mad,
+                    )
+                    LOG.info("%s: %s MAD, disponible=%s, score=%.1f, alerte=%s",
+                             offer.title, offer.price, offer.available, offer.match_score, decision.reason)
+                    if settings.alerts.enabled and decision.should_notify:
+                        message = notifier.build_message(product, offer, stats)
+                        if dry_run:
+                            LOG.info("Mode dry-run, notification non envoyée:\n%s", message)
+                        elif notifier.configured:
+                            try:
+                                notifier.send(message)
+                                repository.mark_alerted(product_id, offer)
+                            except Exception:
+                                LOG.exception("Échec de notification Telegram")
+                                errors += 1
+                        else:
+                            LOG.warning("Telegram non configuré; alerte non envoyée")
+                # Délai entre les requêtes
+                time.sleep(settings.http.delay_between_requests_seconds)
         return 1 if errors else 0
     finally:
-        scraper.close()
+        for scraper in scrapers:
+            scraper.close()
         notifier.close()
 
 
