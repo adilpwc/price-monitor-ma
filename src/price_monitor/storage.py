@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS price_checks (
 );
 CREATE INDEX IF NOT EXISTS idx_checks_product_site_date
   ON price_checks(product_id, site, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_checks_product_site_url
+  ON price_checks(product_id, site, url, checked_at DESC);
 CREATE TABLE IF NOT EXISTS alert_state (
   product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   site TEXT NOT NULL,
@@ -89,24 +91,39 @@ class PriceRepository:
                  offer.checked_at.isoformat()),
             )
 
-    def stats(self, product_id: int, site: str) -> HistoricalStats | None:
+    def stats(self, product_id: int, site: str, url: str | None = None) -> HistoricalStats | None:
+        """
+        Récupère les stats historiques pour un produit/site.
+        Si url est fourni, filtre par URL pour les variantes spécifiques.
+        """
         with self.connect() as conn:
-            rows = conn.execute(
-                "SELECT price,checked_at FROM price_checks WHERE product_id=? AND site=? "
-                "ORDER BY checked_at DESC, id DESC", (product_id, site),
-            ).fetchall()
+            if url:
+                # Filtre par URL pour éviter de mélanger les variantes
+                rows = conn.execute(
+                    "SELECT price,checked_at FROM price_checks WHERE product_id=? AND site=? AND url=? "
+                    "ORDER BY checked_at DESC, id DESC", (product_id, site, url),
+                ).fetchall()
+            else:
+                # Récupère tous les prix du site
+                rows = conn.execute(
+                    "SELECT price,checked_at FROM price_checks WHERE product_id=? AND site=? "
+                    "ORDER BY checked_at DESC, id DESC", (product_id, site),
+                ).fetchall()
+        
         if not rows:
             return None
+        
         current = Decimal(rows[0]["price"])
         previous = Decimal(rows[1]["price"]) if len(rows) > 1 else None
         minimum = min(Decimal(row["price"]) for row in rows)
         last_change = None
         for row in rows[1:]:
             if Decimal(row["price"]) != current:
-                last_change = datetime.fromisoformat(rows[0]["checked_at"])
+                last_change = datetime.fromisoformat(row["checked_at"])
                 break
+        
         return HistoricalStats(current, previous, minimum,
-                               current - previous if previous is not None else None, last_change)
+                              current - previous if previous is not None else None, last_change)
 
     def alert_decision(self, product_id: int, product: ProductConfig, offer: Offer,
                        change_percent: Decimal, change_mad: Decimal) -> AlertDecision:
