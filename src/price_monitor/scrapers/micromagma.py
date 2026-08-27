@@ -5,7 +5,6 @@ import time
 from urllib.parse import urljoin
 
 import httpx
-from bs4 import BeautifulSoup
 
 from ..config import HttpSettings, MatchingSettings, ScraperSettings
 from ..matching import is_match
@@ -85,10 +84,10 @@ class MicroMagmaScraper(BaseScraper):
         """Parse la réponse JSON de l'API MicroMagma"""
         results: list[Offer] = []
         
-        # Accéder à la liste des produits
-        products = data.get("products", [])
+        # Accéder à la liste des produits (dans 'content')
+        products = data.get("content", [])
         if not isinstance(products, list):
-            LOG.warning("Structure JSON inattendue de MicroMagma")
+            LOG.warning("Structure JSON inattendue de MicroMagma: pas de champ 'content'")
             return results
         
         for item in products:
@@ -105,8 +104,10 @@ class MicroMagmaScraper(BaseScraper):
             if not matched:
                 continue
             
-            # Extraire le prix
+            # Extraire le prix (utiliser 'price' si disponible, sinon 'minPrice')
             price_data = item.get("price")
+            if price_data is None:
+                price_data = item.get("minPrice")
             if price_data is None:
                 continue
             
@@ -116,29 +117,24 @@ class MicroMagmaScraper(BaseScraper):
                 LOG.debug("Prix MicroMagma illisible pour %s: %s", title, price_data)
                 continue
             
-            # Extraire l'URL du produit
-            url = str(item.get("url", "")).strip()
+            # Construire l'URL du produit
+            product_id = item.get("id")
+            alias = item.get("alias", "")
+            if product_id and alias:
+                url = f"{self.settings.base_url}/{item.get('familyAlias', 'item')}/item/{product_id}-{alias}"
+            else:
+                url = f"{self.settings.base_url}/product/{product_id}" if product_id else None
+            
             if not url:
-                url = str(item.get("link", "")).strip()
-            if not url:
-                url = f"{self.settings.base_url}/product/{item.get('id', '')}"
-            if not url or url.endswith("/"):
                 continue
             
-            # Rendre l'URL absolue
-            url = urljoin(self.settings.base_url, url)
-            
-            # Déterminer la disponibilité
-            available = item.get("available", True)
-            if isinstance(available, str):
-                available = available.lower() not in ("false", "0", "no", "unavailable", "out of stock")
-            
-            # Extraire l'image (optionnel)
-            image_url = str(item.get("image", "")).strip() or str(item.get("imageUrl", "")).strip()
-            if image_url:
+            # Extraire l'image
+            image_url = item.get("imageUrl")
+            if image_url and not image_url.startswith("http"):
                 image_url = urljoin(self.settings.base_url, image_url)
-            else:
-                image_url = None
+            
+            # Disponibilité (par défaut disponible)
+            available = True
             
             # Créer l'offre
             results.append(Offer(
