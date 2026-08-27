@@ -104,28 +104,37 @@ class MicroMagmaScraper(BaseScraper):
             if not matched:
                 continue
             
-            # Extraire le prix (utiliser 'price' si disponible, sinon 'minPrice')
-            price_data = item.get("price")
-            if price_data is None:
-                price_data = item.get("minPrice")
-            if price_data is None:
+            # Construire l'URL AVANT de traiter le prix (pour les logs)
+            product_id = item.get("id")
+            alias = item.get("alias", "")
+            family_alias = item.get("familyAlias", "laptops")
+            
+            if product_id and alias:
+                url = f"{self.settings.base_url}/{family_alias}/item/{product_id}-{alias}"
+            elif product_id:
+                url = f"{self.settings.base_url}/product/{product_id}"
+            else:
+                continue
+            
+            # Extraire le prix - UTILISER LE PRIX LE PLUS BAS
+            # Préférer minPrice (prix en promotion) s'il existe et est plus bas
+            price_promo = item.get("minPrice")
+            price_normal = item.get("price")
+            
+            # Sélectionner le prix à utiliser
+            if price_promo is not None and price_promo > 0:
+                price_to_use = price_promo  # Utiliser le prix promo s'il existe
+            elif price_normal is not None and price_normal > 0:
+                price_to_use = price_normal
+            else:
+                LOG.debug("Aucun prix valide pour %s", title)
                 continue
             
             try:
-                price = parse_price(str(price_data))
-            except ValueError:
-                LOG.debug("Prix MicroMagma illisible pour %s: %s", title, price_data)
-                continue
-            
-            # Construire l'URL du produit
-            product_id = item.get("id")
-            alias = item.get("alias", "")
-            if product_id and alias:
-                url = f"{self.settings.base_url}/{item.get('familyAlias', 'item')}/item/{product_id}-{alias}"
-            else:
-                url = f"{self.settings.base_url}/product/{product_id}" if product_id else None
-            
-            if not url:
+                # Convertir en Decimal via parse_price
+                price = parse_price(str(price_to_use))
+            except ValueError as e:
+                LOG.debug("Prix MicroMagma illisible pour %s: %s - %s", title, price_to_use, e)
                 continue
             
             # Extraire l'image
@@ -137,9 +146,13 @@ class MicroMagmaScraper(BaseScraper):
             available = True
             
             # Créer l'offre
-            results.append(Offer(
+            offer = Offer(
                 product.name, title, self.name, price, "MAD", available,
                 url, image_url, score
-            ))
+            )
+            results.append(offer)
+            
+            LOG.debug("MicroMagma trouvé: %s - %s MAD (promo: %s) - URL: %s", 
+                      title, price_normal, price_promo, url)
         
         return results
