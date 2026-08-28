@@ -15,7 +15,7 @@ def test_real_configuration_has_expected_providers() -> None:
     settings = load_settings(Path("config/settings.yml"))
     products = load_products(Path("config/products.yml"))
     assert len(settings.sites) == 17
-    assert sum(site.enabled for site in settings.sites) == 9
+    assert sum(site.enabled for site in settings.sites) == 6
     assert str(settings.timezone) == "Africa/Casablanca"
     assert products[0].max_price == Decimal("10000")
 
@@ -56,3 +56,17 @@ def test_matching_uses_token_boundaries() -> None:
     assert match_score(product, "Apple MacBook Air M2") > 72
     assert match_score(product, "Apple MacBook Air M20") == 0
     assert match_score(product, "Apple MacBook Pro Air M2") == 0
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Magic keyboard pour MacBook Air 13 pouces M2",
+        "Coque MacBook Air M2 Crystal Clear",
+        "Dual Monitors pour MacBook Air M2",
+        "Hub USB-C pour MacBook Air M2",
+    ],
+)
+def test_configured_product_rejects_accessories(title: str) -> None:
+    product = load_products(Path("config/products.yml"))[0]
+    assert match_score(product, title) == 0
