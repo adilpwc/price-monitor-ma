@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+from urllib.parse import urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
@@ -18,125 +19,159 @@ class ConfigError(ValueError):
 @dataclass(frozen=True, slots=True)
 class HttpSettings:
     timeout_seconds: float
-    connect_timeout_seconds: float
-    retries: int
-    retry_backoff_seconds: float
-    delay_between_requests_seconds: float
     user_agent: str
+    max_results_per_site: int
 
 
 @dataclass(frozen=True, slots=True)
-class MatchingSettings:
-    minimum_score: float
-    token_score_weight: float
-    ratio_score_weight: float
+class SiteSettings:
+    name: str
+    enabled: bool
+    kind: str
+    base_url: str
+    search_path: str
+    query_param: str
+    card_selector: str
+    title_selector: str
+    price_selector: str
+    link_selector: str
+    image_selector: str | None = None
+    availability_selector: str | None = None
+    unavailable_text: tuple[str, ...] = ()
+
+    def build_search_url(self) -> str:
+        return self.base_url.rstrip("/") + "/" + self.search_path.lstrip("/")
 
 
 @dataclass(frozen=True, slots=True)
 class AlertSettings:
-    enabled: bool
-    significant_change_percent: Decimal
-    significant_change_mad: Decimal
+    cooldown_hours: int
     notify_back_in_stock: bool
 
 
 @dataclass(frozen=True, slots=True)
-class ScraperSettings:
-    enabled: bool
-    base_url: str
-    search_path: str
-    query_parameter: str
-    max_results: int
-
-
-@dataclass(frozen=True, slots=True)
 class Settings:
-    database_path: Path
-    currency: str
-    timezone: str
-    log_level: str
+    timezone: ZoneInfo
     http: HttpSettings
-    matching: MatchingSettings
+    sites: tuple[SiteSettings, ...]
     alerts: AlertSettings
-    ultrapc: ScraperSettings
-    micromagma: ScraperSettings
-    jumia: ScraperSettings  # ← AJOUTER
 
 
-def _read_yaml(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        raise ConfigError(f"Fichier de configuration introuvable: {path}")
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    if not isinstance(raw, dict):
-        raise ConfigError(f"La racine YAML doit être un objet: {path}")
-    return raw
+def _mapping(value: object, context: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ConfigError(f"{context} doit être un objet YAML")
+    return cast(dict[str, Any], value)
 
 
-def load_settings(path: str | Path | None = None) -> Settings:
-    file_path = Path(path or os.getenv("PRICE_MONITOR_CONFIG", "config/settings.yml"))
-    raw = _read_yaml(file_path)
+def _str(data: dict[str, Any], key: str, context: str, default: str | None = None) -> str:
+    value = data.get(key, default)
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(f"{context}.{key} doit être une chaîne non vide")
+    return value.strip()
+
+
+def _bool(data: dict[str, Any], key: str, context: str, default: bool) -> bool:
+    value = data.get(key, default)
+    if not isinstance(value, bool):
+        raise ConfigError(f"{context}.{key} doit être un booléen YAML")
+    return value
+
+
+def _positive_number(data: dict[str, Any], key: str, context: str, default: float) -> float:
+    value = data.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ConfigError(f"{context}.{key} doit être strictement positif")
+    return float(value)
+
+
+def _valid_url(value: str, context: str) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ConfigError(f"{context} doit être une URL HTTPS")
+    return value.rstrip("/")
+
+
+def load_settings(path: Path) -> Settings:
+    raw = _mapping(yaml.safe_load(path.read_text(encoding="utf-8")), "settings")
+    timezone_name = _str(raw, "timezone", "settings", "Africa/Casablanca")
     try:
-        app, http, matching = raw["app"], raw["http"], raw["matching"]
-        alerts, ultra = raw["alerts"], raw["scrapers"]["ultrapc"]
-        micro = raw["scrapers"]["micromagma"]
-        jumia = raw["scrapers"]["jumia"]
-        token_weight = float(matching["token_score_weight"])
-        ratio_weight = float(matching["ratio_score_weight"])
-        if abs(token_weight + ratio_weight - 1.0) > 0.001:
-            raise ConfigError("La somme des poids de matching doit être égale à 1")
-        return Settings(
-            database_path=Path(app["database_path"]),
-            currency=str(app.get("currency", "MAD")).upper(),
-            timezone=str(app.get("timezone", "Africa/Casablanca")),
-            log_level=os.getenv("LOG_LEVEL", str(app.get("log_level", "INFO"))).upper(),
-            http=HttpSettings(
-                timeout_seconds=float(http["timeout_seconds"]),
-                connect_timeout_seconds=float(http["connect_timeout_seconds"]),
-                retries=int(http["retries"]),
-                retry_backoff_seconds=float(http["retry_backoff_seconds"]),
-                delay_between_requests_seconds=float(http["delay_between_requests_seconds"]),
-                user_agent=str(http["user_agent"]),
-            ),
-            matching=MatchingSettings(float(matching["minimum_score"]), token_weight, ratio_weight),
-            alerts=AlertSettings(
-                bool(alerts["enabled"]), Decimal(str(alerts["significant_change_percent"])),
-                Decimal(str(alerts["significant_change_mad"])), bool(alerts["notify_back_in_stock"]),
-            ),
-            ultrapc=ScraperSettings(
-                bool(ultra["enabled"]), str(ultra["base_url"]).rstrip("/"),
-                str(ultra["search_path"]), str(ultra["query_parameter"]), int(ultra["max_results"]),
-            ),
-            jumia=ScraperSettings(
-                bool(jumia["enabled"]), str(jumia["base_url"]).rstrip("/"),
-                str(jumia["search_path"]), str(jumia["query_parameter"]), int(jumia["max_results"]),
-            ),
-            micromagma=ScraperSettings(
-                bool(micro["enabled"]), str(micro["base_url"]).rstrip("/"),
-                str(micro["search_path"]), str(micro["query_parameter"]), int(micro["max_results"]),
-            ),
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as exc:
+        raise ConfigError(f"Fuseau inconnu: {timezone_name}") from exc
+
+    http = _mapping(raw.get("http", {}), "http")
+    http_settings = HttpSettings(
+        timeout_seconds=_positive_number(http, "timeout_seconds", "http", 20),
+        user_agent=_str(http, "user_agent", "http", "price-monitor-ma/2.0"),
+        max_results_per_site=int(_positive_number(http, "max_results_per_site", "http", 10)),
+    )
+
+    sites_raw = _mapping(raw.get("sites"), "sites")
+    sites: list[SiteSettings] = []
+    for name, value in sites_raw.items():
+        site = _mapping(value, f"sites.{name}")
+        context = f"sites.{name}"
+        kind = _str(site, "kind", context, "html")
+        if kind not in {"html", "json"}:
+            raise ConfigError(f"{context}.kind doit valoir html ou json")
+        sites.append(
+            SiteSettings(
+                name=name,
+                enabled=_bool(site, "enabled", context, True),
+                kind=kind,
+                base_url=_valid_url(_str(site, "base_url", context), f"{context}.base_url"),
+                search_path=_str(site, "search_path", context),
+                query_param=_str(site, "query_param", context, "q"),
+                card_selector=_str(site, "card_selector", context, "article"),
+                title_selector=_str(site, "title_selector", context, "h2"),
+                price_selector=_str(site, "price_selector", context, "[itemprop='price']"),
+                link_selector=_str(site, "link_selector", context, "a"),
+                image_selector=site.get("image_selector"),
+                availability_selector=site.get("availability_selector"),
+                unavailable_text=tuple(
+                    str(item).lower() for item in site.get("unavailable_text", [])
+                ),
+            )
         )
-    except (KeyError, TypeError, ValueError, InvalidOperation) as exc:
-        raise ConfigError(f"Configuration invalide dans {file_path}: {exc}") from exc
+    if not any(site.enabled for site in sites):
+        raise ConfigError("Au moins un site doit être activé")
+
+    alerts = _mapping(raw.get("alerts", {}), "alerts")
+    alert_settings = AlertSettings(
+        cooldown_hours=int(_positive_number(alerts, "cooldown_hours", "alerts", 24)),
+        notify_back_in_stock=_bool(alerts, "notify_back_in_stock", "alerts", True),
+    )
+    return Settings(
+        timezone=timezone,
+        http=http_settings,
+        sites=tuple(sites),
+        alerts=alert_settings,
+    )
 
 
-def load_products(path: str | Path = "config/products.yml") -> list[ProductConfig]:
-    raw = _read_yaml(Path(path))
-    rows = raw.get("products", [])
+def load_products(path: Path) -> tuple[ProductConfig, ...]:
+    raw = _mapping(yaml.safe_load(path.read_text(encoding="utf-8")), "products")
+    rows = raw.get("products")
     if not isinstance(rows, list):
-        raise ConfigError("products doit être une liste")
+        raise ConfigError("products.products doit être une liste")
     products: list[ProductConfig] = []
-    for index, row in enumerate(rows):
+    for index, value in enumerate(rows):
+        row = _mapping(value, f"products[{index}]")
+        name = _str(row, "name", f"products[{index}]")
         try:
-            price = Decimal(str(row["max_price"]))
-            if price <= 0:
-                raise ConfigError("max_price doit être positif")
-            products.append(ProductConfig(
-                name=str(row["name"]).strip(), max_price=price,
-                enabled=bool(row.get("enabled", True)),
-                aliases=tuple(map(str, row.get("aliases", []))),
-                required_tokens=tuple(str(x).lower() for x in row.get("required_tokens", [])),
-                excluded_tokens=tuple(str(x).lower() for x in row.get("excluded_tokens", [])),
-            ))
-        except (KeyError, TypeError, InvalidOperation) as exc:
-            raise ConfigError(f"Produit #{index + 1} invalide: {exc}") from exc
-    return [p for p in products if p.enabled]
+            max_price = Decimal(str(row["max_price"]))
+        except (KeyError, ArithmeticError) as exc:
+            raise ConfigError(f"Prix seuil invalide pour {name}") from exc
+        if max_price <= 0:
+            raise ConfigError(f"Prix seuil invalide pour {name}")
+        products.append(
+            ProductConfig(
+                name=name,
+                max_price=max_price,
+                enabled=_bool(row, "enabled", f"products[{index}]", True),
+                aliases=tuple(str(item) for item in row.get("aliases", [])),
+                required_tokens=tuple(str(item) for item in row.get("required_tokens", [])),
+                excluded_tokens=tuple(str(item) for item in row.get("excluded_tokens", [])),
+            )
+        )
+    return tuple(products)
