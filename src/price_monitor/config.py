@@ -38,6 +38,8 @@ class SiteSettings:
     image_selector: str | None = None
     availability_selector: str | None = None
     unavailable_text: tuple[str, ...] = ()
+    product_url_include: tuple[str, ...] = ()
+    product_url_exclude: tuple[str, ...] = ()
 
     def build_search_url(self) -> str:
         return self.base_url.rstrip("/") + "/" + self.search_path.lstrip("/")
@@ -130,6 +132,12 @@ def load_settings(path: Path) -> Settings:
                 availability_selector=site.get("availability_selector"),
                 unavailable_text=tuple(
                     str(item).lower() for item in site.get("unavailable_text", [])
+                ),
+                product_url_include=tuple(
+                    str(item).lower() for item in site.get("product_url_include", [])
+                ),
+                product_url_exclude=tuple(
+                    str(item).lower() for item in site.get("product_url_exclude", [])
                 ),
             )
         )
