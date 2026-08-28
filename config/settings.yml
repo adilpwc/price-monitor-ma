@@ -23,10 +23,12 @@ sites:
     price_selector: div.prc, .special-price .price, .price
     link_selector: a.core, a.product-item-link, a
     image_selector: img
+    product_url_exclude: [/customer/account/]
     unavailable_text: [épuisé, rupture, indisponible]
 
+  # GitHub Actions reçoit actuellement HTTP 403. Réactiver après validation d'un accès autorisé.
   electroplanet:
-    enabled: true
+    enabled: false
     kind: html
     base_url: https://www.electroplanet.ma
     search_path: /catalogsearch/result/
@@ -51,8 +53,9 @@ sites:
     image_selector: img
     unavailable_text: [épuisé, rupture, indisponible]
 
+  # La route /recherche redirige actuellement vers une page 404.
   micromagma:
-    enabled: true
+    enabled: false
     kind: html
     base_url: https://www.micromagma.ma
     search_path: /recherche
@@ -64,8 +67,9 @@ sites:
     image_selector: img
     unavailable_text: [épuisé, rupture, indisponible]
 
+  # GitHub Actions reçoit actuellement HTTP 403. Réactiver après validation d'un accès autorisé.
   marjanemall:
-    enabled: true
+    enabled: false
     kind: html
     base_url: https://www.marjanemall.ma
     search_path: /search

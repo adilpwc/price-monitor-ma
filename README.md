@@ -1,13 +1,15 @@
 # price-monitor-ma
 
-Moniteur de prix Python pour neuf boutiques marocaines actives : **Jumia Maroc, Electroplanet, UltraPC, MicroMagma, Marjane Mall, Cosmos, Biougnach, ElectroSalam et MyMarket**.
+Moniteur de prix Python pour six boutiques marocaines actives : **Jumia Maroc, UltraPC, Cosmos, Biougnach, ElectroSalam et MyMarket**.
+
+**Electroplanet** et **Marjane Mall** restent configurés mais sont désactivés, car leurs protections refusent actuellement les requêtes provenant de GitHub Actions avec HTTP 403. **MicroMagma** est également désactivé, car sa route de recherche configurée redirige actuellement vers une page 404. Ils ne doivent être réactivés qu'après validation d'un accès automatisé autorisé et d'une route fonctionnelle.
 
 Des configurations sectorielles sont fournies mais désactivées par défaut pour **Decathlon Maroc, IKEA Maroc, Mafiaway Store, Bringo, DeFacto, Palmarosa, PlanetSport et Avito**. Elles ne sont pas interrogées pour le MacBook suivi. `Moteur.ma` et `Mubawab` ne sont pas ajoutés : leurs verticales automobile et immobilier ne correspondent pas à un moniteur de produits de détail.
 
 ## Garanties et limites
 
 - Extraction HTML configurable avec repli JSON-LD.
-- Tests unitaires hors réseau pour les neuf boutiques actives.
+- Tests unitaires hors réseau pour les fournisseurs configurés.
 - Les tests hors réseau valident le parseur, pas la stabilité future du HTML réel.
 - Aucun contournement de CAPTCHA, connexion ou protection anti-bot.
 - Avant activation, vérifier les CGU et `robots.txt` de chaque site. La fréquence par défaut est limitée à une exécution toutes les deux heures et 10 résultats/site.
