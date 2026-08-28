@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .config import Settings, load_products, load_settings
 from .models import ProductConfig
-from .notifications.telegram import TelegramNotifier
+from .notifications.telegram import TelegramNotifier, format_alert_message
 from .scrapers.base import BaseScraper, ScraperError
 from .scrapers.html import HtmlScraper
 from .storage import PriceStore
@@ -167,17 +167,14 @@ async def _monitor_product(
             )
             if decision.should_notify:
                 alerts += 1
-                LOGGER.info(
-                    "%s alerte=%s site=%s prix=%s %s url=%s",
-                    "[DRY-RUN]" if dry_run else "Envoi",
-                    decision.reason,
-                    scraper.name,
-                    offer.price,
-                    _safe_log(offer.currency, 12),
-                    _safe_log(offer.url),
-                )
-                if notifier and not dry_run:
-                    await notifier.send(product, offer, decision.reason)
+                stats = store.stats(product_id, offer)
+                message = format_alert_message(product, offer, stats)
+                if dry_run:
+                    LOGGER.info("Mode dry-run, notification non envoyée:\n%s", message)
+                else:
+                    LOGGER.info("Envoi de la notification Telegram:\n%s", message)
+                    if notifier:
+                        await notifier.send(product, offer, stats)
         LOGGER.info(
             "Recherche fin produit=%s site=%s extraites=%d correspondantes=%d "
             "sous_seuil=%d alertes=%d",
