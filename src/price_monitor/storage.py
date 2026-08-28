@@ -24,7 +24,9 @@ class PriceStore:
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL UNIQUE,
                 max_price TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS price_checks (
                 id INTEGER PRIMARY KEY,
@@ -33,7 +35,10 @@ class PriceStore:
                 url TEXT NOT NULL,
                 title TEXT NOT NULL,
                 price TEXT NOT NULL,
+                currency TEXT NOT NULL,
                 available INTEGER NOT NULL,
+                image_url TEXT,
+                match_score REAL NOT NULL,
                 checked_at TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_checks_offer
@@ -49,16 +54,48 @@ class PriceStore:
             );
             """
         )
+        self._migrate_schema()
         self.connection.commit()
+
+    def _columns(self, table: str) -> set[str]:
+        return {
+            str(row["name"])
+            for row in self.connection.execute(f"PRAGMA table_info({table})")  # noqa: S608
+        }
+
+    def _migrate_schema(self) -> None:
+        """Make v1 and early v2 databases compatible without deleting their history."""
+        product_columns = self._columns("products")
+        if "created_at" not in product_columns:
+            self.connection.execute("ALTER TABLE products ADD COLUMN created_at TEXT")
+        if "updated_at" not in product_columns:
+            self.connection.execute("ALTER TABLE products ADD COLUMN updated_at TEXT")
+
+        check_columns = self._columns("price_checks")
+        if "currency" not in check_columns:
+            self.connection.execute(
+                "ALTER TABLE price_checks ADD COLUMN currency TEXT NOT NULL DEFAULT 'MAD'"
+            )
+        if "image_url" not in check_columns:
+            self.connection.execute("ALTER TABLE price_checks ADD COLUMN image_url TEXT")
+        if "match_score" not in check_columns:
+            self.connection.execute(
+                "ALTER TABLE price_checks ADD COLUMN match_score REAL NOT NULL DEFAULT 0"
+            )
 
     def sync_products(self, products: tuple[ProductConfig, ...]) -> None:
         active_names = {product.name for product in products if product.enabled}
+        now = datetime.now(UTC).isoformat()
         for product in products:
             self.connection.execute(
-                """INSERT INTO products(name, max_price, enabled) VALUES (?, ?, ?)
-                   ON CONFLICT(name) DO UPDATE SET max_price=excluded.max_price,
-                                                   enabled=excluded.enabled""",
-                (product.name, str(product.max_price), int(product.enabled)),
+                """INSERT INTO products(
+                       name, max_price, enabled, created_at, updated_at
+                   ) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(name) DO UPDATE SET
+                       max_price=excluded.max_price,
+                       enabled=excluded.enabled,
+                       updated_at=excluded.updated_at""",
+                (product.name, str(product.max_price), int(product.enabled), now, now),
             )
         if active_names:
             placeholders = ",".join("?" for _ in active_names)
@@ -79,15 +116,19 @@ class PriceStore:
     def record(self, product_id: int, offer: Offer) -> None:
         self.connection.execute(
             """INSERT INTO price_checks(
-                   product_id, site, url, title, price, available, checked_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   product_id, site, url, title, price, currency, available,
+                   image_url, match_score, checked_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 product_id,
                 offer.site,
                 offer.url,
                 offer.title,
                 str(offer.price),
+                offer.currency,
                 int(offer.available),
+                offer.image_url,
+                offer.match_score,
                 offer.checked_at.astimezone(UTC).isoformat(),
             ),
         )
