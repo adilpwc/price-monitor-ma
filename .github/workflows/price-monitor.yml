@@ -8,7 +8,7 @@ on:
       dry_run:
         description: Exécuter sans Telegram
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -44,9 +44,13 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          args=()
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then args+=(--dry-run); fi
-          price-monitor-ma "${args[@]}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "Manual test: dry-run enabled; Telegram secrets are not required."
+            price-monitor-ma --dry-run
+          else
+            echo "Scheduled or live run: Telegram secrets are required."
+            price-monitor-ma
+          fi
       - name: Save database cache
         if: ${{ success() }}
         uses: actions/cache/save@v4
