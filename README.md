@@ -1,11 +1,13 @@
 # price-monitor-ma
 
-Moniteur de prix Python pour six boutiques marocaines : **Jumia Maroc, Electroplanet, UltraPC, MicroMagma, Marjane Mall et Cosmos**.
+Moniteur de prix Python pour neuf boutiques marocaines actives : **Jumia Maroc, Electroplanet, UltraPC, MicroMagma, Marjane Mall, Cosmos, Biougnach, ElectroSalam et MyMarket**.
+
+Des configurations sectorielles sont fournies mais désactivées par défaut pour **Decathlon Maroc, IKEA Maroc, Mafiaway Store, Bringo, DeFacto, Palmarosa, PlanetSport et Avito**. Elles ne sont pas interrogées pour le MacBook suivi. `Moteur.ma` et `Mubawab` ne sont pas ajoutés : leurs verticales automobile et immobilier ne correspondent pas à un moniteur de produits de détail.
 
 ## Garanties et limites
 
 - Extraction HTML configurable avec repli JSON-LD.
-- Tests unitaires hors réseau pour les six configurations.
+- Tests unitaires hors réseau pour les neuf boutiques actives.
 - Les tests hors réseau valident le parseur, pas la stabilité future du HTML réel.
 - Aucun contournement de CAPTCHA, connexion ou protection anti-bot.
 - Avant activation, vérifier les CGU et `robots.txt` de chaque site. La fréquence par défaut est limitée à une exécution toutes les deux heures et 10 résultats/site.
@@ -62,4 +64,6 @@ python -m pip check
 
 ## Diagnostic
 
-Une erreur d'un site est isolée et journalisée. Si le HTML d'une boutique change, ajuster uniquement ses sélecteurs dans `config/settings.yml`, ajouter une fixture représentative, puis relancer `pytest`.
+Une erreur d'un site est isolée et journalisée. Les réponses HTTP incluent la durée, le statut, le volume et le type de contenu. Un HTTP 403 est signalé comme un refus d'accès automatisé et n'est pas réessayé : le moniteur ne contourne ni CAPTCHA ni protection anti-bot. Les URL externes sont rejetées et les paramètres de suivi (`utm_*`, `fbclid`, `gclid`) supprimés.
+
+Si le HTML d'une boutique change, ajuster uniquement ses sélecteurs dans `config/settings.yml`, ajouter une fixture représentative, puis relancer `pytest`.
