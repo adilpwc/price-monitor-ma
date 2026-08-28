@@ -1,46 +1,91 @@
-app:
-  database_path: data/prices.db
-  currency: MAD
-  timezone: Africa/Casablanca
-  log_level: INFO
+timezone: Africa/Casablanca
 
 http:
   timeout_seconds: 20
-  connect_timeout_seconds: 10
-  retries: 2
-  retry_backoff_seconds: 1.5
-  delay_between_requests_seconds: 1.0
-  user_agent: "price-monitor-ma/1.0 (+https://github.com/adilpwc/price-monitor-ma)"
-
-matching:
-  minimum_score: 72
-  token_score_weight: 0.65
-  ratio_score_weight: 0.35
+  max_results_per_site: 10
+  user_agent: price-monitor-ma/2.0 (+https://github.com/adilpwc/price-monitor-ma)
 
 alerts:
-  enabled: true
-  significant_change_percent: 2.0
-  significant_change_mad: 50
+  cooldown_hours: 24
   notify_back_in_stock: true
 
-scrapers:
-  ultrapc:
-    enabled: true
-    base_url: "https://www.ultrapc.ma"
-    search_path: "/recherche"
-    query_parameter: "s"
-    max_results: 20
-  
-  micromagma:
-    enabled: true
-    base_url: "https://micromagma.ma"
-    search_path: "/api/products/criteria"
-    query_parameter: "search"
-    max_results: 20
-  
+# Les sélecteurs sont volontairement redondants afin de tolérer de petites évolutions HTML.
+# Respecter les CGU/robots.txt de chaque boutique et garder une fréquence faible.
+sites:
   jumia:
     enabled: true
-    base_url: "https://www.jumia.ma"
-    search_path: "/catalog/"
-    query_parameter: "q"
-    max_results: 20
+    kind: html
+    base_url: https://www.jumia.ma
+    search_path: /catalog/
+    query_param: q
+    card_selector: article.prd, article[data-id], .product-item
+    title_selector: h3.name, .product-item-name, h2, h3
+    price_selector: div.prc, .special-price .price, .price
+    link_selector: a.core, a.product-item-link, a
+    image_selector: img
+    unavailable_text: [épuisé, rupture, indisponible]
+
+  electroplanet:
+    enabled: true
+    kind: html
+    base_url: https://www.electroplanet.ma
+    search_path: /catalogsearch/result/
+    query_param: q
+    card_selector: .product-item, article, [data-product-id]
+    title_selector: .product-item-name, .product-title, h2, h3
+    price_selector: .special-price .price, .price-final_price .price, .price
+    link_selector: a.product-item-link, a
+    image_selector: img
+    unavailable_text: [épuisé, rupture, indisponible]
+
+  ultrapc:
+    enabled: true
+    kind: html
+    base_url: https://www.ultrapc.ma
+    search_path: /recherche
+    query_param: s
+    card_selector: .product-miniature, .product-item, article
+    title_selector: .product-title, .product-item-name, h2, h3
+    price_selector: .product-price-and-shipping .price, .price
+    link_selector: a.thumbnail, .product-title a, a
+    image_selector: img
+    unavailable_text: [épuisé, rupture, indisponible]
+
+  micromagma:
+    enabled: true
+    kind: html
+    base_url: https://www.micromagma.ma
+    search_path: /recherche
+    query_param: s
+    card_selector: .product-miniature, .product-item, article
+    title_selector: .product-title, .product-item-name, h2, h3
+    price_selector: .product-price-and-shipping .price, .price
+    link_selector: .product-title a, a
+    image_selector: img
+    unavailable_text: [épuisé, rupture, indisponible]
+
+  marjanemall:
+    enabled: true
+    kind: html
+    base_url: https://www.marjanemall.ma
+    search_path: /search
+    query_param: q
+    card_selector: .product-card, .product-item, article, [data-product-id]
+    title_selector: .product-title, .product-item-name, h2, h3
+    price_selector: .sale-price, .current-price, .price
+    link_selector: a.product-link, a
+    image_selector: img
+    unavailable_text: [épuisé, rupture, indisponible]
+
+  cosmos:
+    enabled: true
+    kind: html
+    base_url: https://cosmos.ma
+    search_path: /catalogsearch/result/
+    query_param: q
+    card_selector: .product-item, .product-card, article, [data-product-id]
+    title_selector: .product-item-name, .product-title, h2, h3
+    price_selector: .special-price .price, .price-final_price .price, .price
+    link_selector: a.product-item-link, a
+    image_selector: img
+    unavailable_text: [épuisé, rupture, indisponible]
