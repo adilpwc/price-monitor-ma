@@ -43,6 +43,28 @@ def test_json_ld_fallback() -> None:
     asyncio.run(scraper.aclose())
 
 
+def test_nested_json_ld_aggregate_offer() -> None:
+    settings = load_settings(Path("config/settings.yml"))
+    site = settings.sites[0]
+    html = """
+    <script type="application/ld+json">
+    {"@type":"ItemList","itemListElement":[{"item":{"@type":"https://schema.org/Product",
+     "name":"Apple MacBook Air M2","url":"/nested-m2","image":{"url":"/m2.jpg"},
+     "offers":{"@type":"AggregateOffer","lowPrice":"9499","priceCurrency":"MAD"}}}]}
+    </script>
+    """
+    scraper = HtmlScraper(site, settings.http)
+    product = ProductConfig(
+        "MacBook Air M2", Decimal("10000"), required_tokens=("macbook", "air", "m2")
+    )
+    offers = scraper.parse(html, product)
+    assert len(offers) == 1
+    assert offers[0].price == Decimal("9499.00")
+    assert offers[0].image_url == f"{site.base_url}/m2.jpg"
+    assert offers[0].match_score >= 72
+    asyncio.run(scraper.aclose())
+
+
 def test_search_uses_configured_query() -> None:
     settings = load_settings(Path("config/settings.yml"))
     site = settings.sites[0]
@@ -53,7 +75,9 @@ def test_search_uses_configured_query() -> None:
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     scraper = HtmlScraper(site, settings.http, client)
-    result = asyncio.run(scraper.search(ProductConfig("MacBook Air M2", Decimal("10000"))))
+    result = asyncio.run(
+        scraper.search(ProductConfig("MacBook Air M2", Decimal("10000")))
+    )
     assert result == []
     asyncio.run(client.aclose())
 
@@ -77,7 +101,9 @@ def test_telegram_payload() -> None:
         available=True,
         url="https://shop.ma/p/1?a=1&b=2",
     )
-    asyncio.run(notifier.send(ProductConfig("MacBook Air", Decimal("10000")), offer, "first"))
+    asyncio.run(
+        notifier.send(ProductConfig("MacBook Air", Decimal("10000")), offer, "first")
+    )
     assert "dummy-token" not in str(captured["body"])
     assert "MacBook" in str(captured["body"])
     asyncio.run(notifier.aclose())

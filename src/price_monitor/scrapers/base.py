@@ -10,6 +10,10 @@ class ScraperError(RuntimeError):
 
 
 class BaseScraper(ABC):
+    @property
+    def name(self) -> str:
+        return type(self).__name__
+
     @abstractmethod
     async def search(self, product: ProductConfig) -> list[Offer]:
         raise NotImplementedError

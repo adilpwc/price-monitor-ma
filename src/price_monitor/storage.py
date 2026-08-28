@@ -141,6 +141,8 @@ class PriceStore:
         threshold: Decimal,
         cooldown_hours: int,
         notify_back_in_stock: bool,
+        *,
+        persist: bool = True,
     ) -> AlertDecision:
         row = self.connection.execute(
             """SELECT last_alert_price, last_alert_at, last_available
@@ -185,26 +187,27 @@ class PriceStore:
         else:
             reason = "deduplicated"
 
-        self.connection.execute(
-            """INSERT INTO alert_state_v2(
-                   product_id, site, url, last_alert_price, last_alert_at, last_available
-               ) VALUES (?, ?, ?, ?, ?, ?)
-               ON CONFLICT(product_id, site, url) DO UPDATE SET
-                   last_alert_price=CASE WHEN excluded.last_alert_at IS NOT NULL
-                                         THEN excluded.last_alert_price
-                                         ELSE alert_state_v2.last_alert_price END,
-                   last_alert_at=COALESCE(excluded.last_alert_at, alert_state_v2.last_alert_at),
-                   last_available=excluded.last_available""",
-            (
-                product_id,
-                offer.site,
-                offer.url,
-                str(offer.price) if should_notify else None,
-                now.isoformat() if should_notify else None,
-                int(offer.available),
-            ),
-        )
-        self.connection.commit()
+        if persist:
+            self.connection.execute(
+                """INSERT INTO alert_state_v2(
+                       product_id, site, url, last_alert_price, last_alert_at, last_available
+                   ) VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(product_id, site, url) DO UPDATE SET
+                       last_alert_price=CASE WHEN excluded.last_alert_at IS NOT NULL
+                                             THEN excluded.last_alert_price
+                                             ELSE alert_state_v2.last_alert_price END,
+                       last_alert_at=COALESCE(excluded.last_alert_at, alert_state_v2.last_alert_at),
+                       last_available=excluded.last_available""",
+                (
+                    product_id,
+                    offer.site,
+                    offer.url,
+                    str(offer.price) if should_notify else None,
+                    now.isoformat() if should_notify else None,
+                    int(offer.available),
+                ),
+            )
+            self.connection.commit()
         return AlertDecision(should_notify, reason, previous_price)
 
     def stats(self, product_id: int, offer: Offer) -> HistoricalStats:

@@ -14,6 +14,11 @@ from .scrapers.html import HtmlScraper
 from .storage import PriceStore
 
 LOGGER = logging.getLogger(__name__)
+MATCH_THRESHOLD = 72.0
+
+
+def _safe_log(value: object, limit: int = 300) -> str:
+    return " ".join(str(value).split())[:limit]
 
 
 def build_scrapers(settings: Settings) -> list[BaseScraper]:
@@ -35,8 +40,8 @@ async def monitor(
 ) -> int:
     settings = load_settings(settings_path)
     products = load_products(products_path)
+    enabled_products = tuple(product for product in products if product.enabled)
     store = PriceStore(database_path)
-    store.sync_products(products)
     scrapers = build_scrapers(settings)
 
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -46,16 +51,27 @@ async def monitor(
         if token and chat_id
         else None
     )
-    if not dry_run and notifier is None:
-        raise RuntimeError(
-            "Secrets Telegram absents; utilisez --dry-run pour tester sans notification"
-        )
+    attempts = len(scrapers) * len(enabled_products)
+    LOGGER.info(
+        "Démarrage mode=%s produits=%d sites=%d tentatives=%d base=%s",
+        "dry-run" if dry_run else "réel",
+        len(enabled_products),
+        len(scrapers),
+        attempts,
+        _safe_log(database_path),
+    )
 
     failures = 0
     try:
-        for product in products:
-            if not product.enabled:
-                continue
+        store.sync_products(products)
+        if not enabled_products:
+            LOGGER.error("Aucun produit actif dans la configuration")
+            return 1
+        if not dry_run and notifier is None:
+            raise RuntimeError(
+                "Secrets Telegram absents; utilisez --dry-run pour tester sans notification"
+            )
+        for product in enabled_products:
             failures += await _monitor_product(
                 product, settings, scrapers, store, notifier, dry_run
             )
@@ -64,7 +80,16 @@ async def monitor(
         if notifier:
             await notifier.aclose()
         store.close()
-    return 1 if failures == len(scrapers) * sum(p.enabled for p in products) else 0
+
+    exit_code = 1 if attempts > 0 and failures == attempts else 0
+    LOGGER.info(
+        "Fin surveillance tentatives=%d réussies=%d échecs=%d code_sortie=%d",
+        attempts,
+        attempts - failures,
+        failures,
+        exit_code,
+    )
+    return exit_code
 
 
 async def _monitor_product(
@@ -77,16 +102,60 @@ async def _monitor_product(
 ) -> int:
     failures = 0
     product_id = store.product_id(product.name)
+    LOGGER.info(
+        "Produit début nom=%s seuil=%s MAD sites=%d",
+        _safe_log(product.name, 160),
+        product.max_price,
+        len(scrapers),
+    )
     for scraper in scrapers:
+        LOGGER.info(
+            "Recherche début produit=%s site=%s",
+            _safe_log(product.name, 160),
+            scraper.name,
+        )
         try:
             offers = await scraper.search(product)
         except ScraperError as exc:
             failures += 1
-            LOGGER.error("%s", exc)
+            LOGGER.error(
+                "Recherche échouée produit=%s site=%s erreur=%s",
+                _safe_log(product.name, 160),
+                scraper.name,
+                _safe_log(exc),
+            )
             continue
+
+        matched = 0
+        under_threshold = 0
+        alerts = 0
+        if not offers:
+            LOGGER.warning(
+                "Aucune offre extraite produit=%s site=%s; vérifier sélecteurs, JSON-LD "
+                "ou rendu JavaScript",
+                _safe_log(product.name, 160),
+                scraper.name,
+            )
         for offer in offers:
             store.record(product_id, offer)
-            if offer.match_score < 72:
+            selected = offer.match_score >= MATCH_THRESHOLD
+            affordable = selected and offer.available and offer.price <= product.max_price
+            matched += int(selected)
+            under_threshold += int(affordable)
+            LOGGER.info(
+                "Offre site=%s prix=%s %s score=%.1f disponible=%s retenue=%s "
+                "sous_seuil=%s titre=%s url=%s",
+                scraper.name,
+                offer.price,
+                _safe_log(offer.currency, 12),
+                offer.match_score,
+                offer.available,
+                selected,
+                affordable,
+                _safe_log(offer.title, 180),
+                _safe_log(offer.url),
+            )
+            if not selected:
                 continue
             decision = store.decide_alert(
                 product_id,
@@ -94,11 +163,37 @@ async def _monitor_product(
                 product.max_price,
                 settings.alerts.cooldown_hours,
                 settings.alerts.notify_back_in_stock,
+                persist=not dry_run,
             )
             if decision.should_notify:
-                LOGGER.info("Alerte %s: %s", decision.reason, offer.url)
+                alerts += 1
+                LOGGER.info(
+                    "%s alerte=%s site=%s prix=%s %s url=%s",
+                    "[DRY-RUN]" if dry_run else "Envoi",
+                    decision.reason,
+                    scraper.name,
+                    offer.price,
+                    _safe_log(offer.currency, 12),
+                    _safe_log(offer.url),
+                )
                 if notifier and not dry_run:
                     await notifier.send(product, offer, decision.reason)
+        LOGGER.info(
+            "Recherche fin produit=%s site=%s extraites=%d correspondantes=%d "
+            "sous_seuil=%d alertes=%d",
+            _safe_log(product.name, 160),
+            scraper.name,
+            len(offers),
+            matched,
+            under_threshold,
+            alerts,
+        )
+    LOGGER.info(
+        "Produit fin nom=%s sites_en_échec=%d/%d",
+        _safe_log(product.name, 160),
+        failures,
+        len(scrapers),
+    )
     return failures
 
 
