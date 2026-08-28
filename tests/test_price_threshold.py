@@ -21,6 +21,16 @@ class ThresholdScraper(BaseScraper):
         return [
             Offer(
                 query=product.name,
+                title="MacBook Air M2 sous le seuil",
+                site=self.name,
+                price=Decimal("9999.99"),
+                currency="MAD",
+                available=True,
+                url="https://shop.ma/below",
+                match_score=100,
+            ),
+            Offer(
+                query=product.name,
                 title="MacBook Air M2 au seuil",
                 site=self.name,
                 price=Decimal("10000"),
@@ -67,8 +77,9 @@ def test_only_equal_or_lower_prices_are_displayed_and_alerted(
         )
 
     assert failures == 0
+    assert "Offre sous seuil site=threshold-shop prix=9999.99 MAD seuil=10000" in caplog.text
     assert "Offre sous seuil site=threshold-shop prix=10000 MAD seuil=10000" in caplog.text
-    assert "🔥 <b>ALERTE PRIX</b>" in caplog.text
+    assert caplog.text.count("🔥 <b>ALERTE PRIX</b>") == 2
     assert "10000.01" not in caplog.text
-    assert "sous_seuil=1 alertes=1" in caplog.text
+    assert "sous_seuil=2 alertes=2" in caplog.text
     store.close()
