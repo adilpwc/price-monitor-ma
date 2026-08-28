@@ -11,10 +11,11 @@ from price_monitor.models import ProductConfig
 from price_monitor.parsing import normalize_text, parse_price
 
 
-def test_real_configuration_has_six_sites() -> None:
+def test_real_configuration_has_expected_providers() -> None:
     settings = load_settings(Path("config/settings.yml"))
     products = load_products(Path("config/products.yml"))
-    assert len(settings.sites) == 6
+    assert len(settings.sites) == 17
+    assert sum(site.enabled for site in settings.sites) == 9
     assert str(settings.timezone) == "Africa/Casablanca"
     assert products[0].max_price == Decimal("10000")
 
