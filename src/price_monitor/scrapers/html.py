@@ -138,10 +138,15 @@ class HtmlScraper(BaseScraper):
             return None
 
         query = urlencode(
-            (key, query_value)
-            for key, query_value in parse_qsl(parsed.query, keep_blank_values=True)
-            if not key.lower().startswith("utm_")
-            and key.lower() not in TRACKING_PARAMETERS
+            [
+                (key, query_value)
+                for key, query_value in parse_qsl(
+                    parsed.query,
+                    keep_blank_values=True,
+                )
+                if not key.lower().startswith("utm_")
+                and key.lower() not in TRACKING_PARAMETERS
+            ]
         )
         return urlunparse(
             ("https", parsed.netloc.lower(), parsed.path or "/", "", query, "")
