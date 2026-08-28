@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -74,4 +75,61 @@ def test_record_stats_and_disable_removed_products(tmp_path: Path) -> None:
     store.sync_products(())
     enabled = store.connection.execute("SELECT enabled FROM products").fetchone()[0]
     assert enabled == 0
+    store.close()
+
+
+def test_migrates_v1_database_without_losing_history(tmp_path: Path) -> None:
+    database = tmp_path / "prices.db"
+    connection = sqlite3.connect(database)
+    connection.executescript(
+        """
+        CREATE TABLE products (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            max_price TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE price_checks (
+            id INTEGER PRIMARY KEY,
+            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            site TEXT NOT NULL,
+            title TEXT NOT NULL,
+            price TEXT NOT NULL,
+            currency TEXT NOT NULL,
+            available INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            image_url TEXT,
+            match_score REAL NOT NULL,
+            checked_at TEXT NOT NULL
+        );
+        INSERT INTO products(
+            name, max_price, enabled, created_at, updated_at
+        ) VALUES (
+            'Produit historique', '5000', 1, '2025-01-01T00:00:00+00:00',
+            '2025-01-01T00:00:00+00:00'
+        );
+        """
+    )
+    connection.close()
+
+    store = PriceStore(database)
+    store.sync_products((ProductConfig("MacBook Air M2", Decimal("10000")),))
+    product_id = store.product_id("MacBook Air M2")
+    store.record(product_id, make_offer())
+
+    historical = store.connection.execute(
+        "SELECT name FROM products WHERE name='Produit historique'"
+    ).fetchone()
+    recorded = store.connection.execute(
+        "SELECT currency, match_score FROM price_checks WHERE product_id=?", (product_id,)
+    ).fetchone()
+    timestamps = store.connection.execute(
+        "SELECT created_at, updated_at FROM products WHERE id=?", (product_id,)
+    ).fetchone()
+
+    assert historical is not None
+    assert tuple(recorded) == ("MAD", 0.0)
+    assert all(timestamps)
     store.close()
