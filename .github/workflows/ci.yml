@@ -1,23 +1,43 @@
 name: CI
+
 on:
   push:
     branches: [main]
-    paths-ignore: ["data/prices.db"]
   pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: python -m pip install --upgrade pip && python -m pip install ".[dev]"
-      - run: ruff check .
-      - run: mypy src
-      - run: pytest --cov=price_monitor --cov-report=term-missing
+      - name: Install project
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy src
+      - name: Tests
+        run: pytest
+      - name: Validate configuration
+        run: python -c "from pathlib import Path; from price_monitor.config import load_products, load_settings; load_settings(Path('config/settings.yml')); load_products(Path('config/products.yml'))"
+      - name: Build package
+        if: matrix.python-version == '3.12'
+        run: python -m build
+      - name: Check dependencies
+        run: python -m pip check

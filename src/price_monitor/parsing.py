@@ -14,20 +14,22 @@ def normalize_text(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", value))
 
 
+def normalized_tokens(value: str) -> set[str]:
+    return set(normalize_text(value).split())
+
+
 def parse_price(value: str) -> Decimal:
     match = _PRICE.search(value.replace("\u00a0", " ").replace("\u202f", " "))
     if not match:
         raise ValueError(f"Prix introuvable: {value!r}")
     raw = re.sub(r"\s", "", match.group(1))
-    # Le dernier séparateur est décimal uniquement lorsqu'il a exactement 2 chiffres à droite.
-    decimal_sep = None
-    for sep in (",", "."):
-        if sep in raw and len(raw.rsplit(sep, 1)[1]) == 2:
-            decimal_sep = sep
+    decimal_sep = next(
+        (sep for sep in (",", ".") if sep in raw and len(raw.rsplit(sep, 1)[1]) == 2),
+        None,
+    )
     if decimal_sep:
         integer, fraction = raw.rsplit(decimal_sep, 1)
-        integer = integer.replace(",", "").replace(".", "")
-        normalized = f"{integer}.{fraction}"
+        normalized = f"{integer.replace(',', '').replace('.', '')}.{fraction}"
     else:
         normalized = raw.replace(",", "").replace(".", "")
     try:

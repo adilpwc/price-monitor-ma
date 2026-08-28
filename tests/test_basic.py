@@ -1,2 +1,1 @@
-def test_sanity():
-    assert True
+"""Legacy test module retained intentionally; coverage moved to focused v2 modules."""

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..models import Offer, ProductConfig
+from price_monitor.models import Offer, ProductConfig
 
 
 class ScraperError(RuntimeError):
@@ -10,8 +10,10 @@ class ScraperError(RuntimeError):
 
 
 class BaseScraper(ABC):
-    name: str
+    @abstractmethod
+    async def search(self, product: ProductConfig) -> list[Offer]:
+        raise NotImplementedError
 
     @abstractmethod
-    def search(self, product: ProductConfig) -> list[Offer]:
+    async def aclose(self) -> None:
         raise NotImplementedError
