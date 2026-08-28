@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 
@@ -26,7 +26,7 @@ class Offer:
     url: str
     image_url: str | None = None
     match_score: float = 0.0
-    checked_at: datetime = field(default_factory=lambda: datetime.now().astimezone())
+    checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass(frozen=True, slots=True)
