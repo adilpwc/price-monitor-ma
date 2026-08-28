@@ -46,8 +46,16 @@ class TelegramNotifier:
         self,
         product: ProductConfig,
         offer: Offer,
-        stats: HistoricalStats,
+        stats: HistoricalStats | str,
     ) -> None:
+        if isinstance(stats, str):
+            stats = HistoricalStats(
+                current_price=offer.price,
+                previous_price=None,
+                minimum_price=offer.price,
+                variation=None,
+                last_change_at=None,
+            )
         response = await self.client.post(
             self.url,
             json={
