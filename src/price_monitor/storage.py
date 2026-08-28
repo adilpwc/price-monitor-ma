@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -88,7 +88,7 @@ class PriceStore:
                 offer.title,
                 str(offer.price),
                 int(offer.available),
-                offer.checked_at.astimezone(timezone.utc).isoformat(),
+                offer.checked_at.astimezone(UTC).isoformat(),
             ),
         )
         self.connection.commit()
@@ -115,7 +115,7 @@ class PriceStore:
             if row and row["last_alert_at"]
             else None
         )
-        now = offer.checked_at.astimezone(timezone.utc)
+        now = offer.checked_at.astimezone(UTC)
         back_in_stock = previous_available is False and offer.available
         under_threshold = offer.available and offer.price <= threshold
         cheaper = previous_price is not None and offer.price < previous_price

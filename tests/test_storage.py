@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -23,7 +23,7 @@ def make_offer(
         currency="MAD",
         available=available,
         url=url,
-        checked_at=datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(hours=hours),
+        checked_at=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(hours=hours),
     )
 
 
