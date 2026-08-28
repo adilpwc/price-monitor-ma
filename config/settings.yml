@@ -89,3 +89,138 @@ sites:
     link_selector: a.product-item-link, a
     image_selector: img
     unavailable_text: [épuisé, rupture, indisponible]
+
+  biougnach:
+    enabled: true
+    kind: html
+    base_url: https://www.biougnach.ma
+    search_path: /recherche
+    query_param: s
+    card_selector: .product-miniature, .product-item, article
+    title_selector: .product-title, .product-item-name, h2, h3
+    price_selector: .current-price, .price
+    link_selector: .product-title a, a
+    image_selector: img
+    product_url_exclude: [/recherche, /panier, /connexion]
+    unavailable_text: [épuisé, rupture, indisponible]
+
+  electrosalam:
+    enabled: true
+    kind: html
+    base_url: https://electrosalam.ma
+    search_path: /search
+    query_param: q
+    card_selector: .card-wrapper, .product-card, article
+    title_selector: .card__heading, .product-title, h2, h3
+    price_selector: .price-item--sale, .price-item--regular, .price
+    link_selector: a[href*='/products/'], a
+    image_selector: img
+    product_url_include: [/products/]
+    unavailable_text: [épuisé, rupture, indisponible, sold out]
+
+  mymarket:
+    enabled: true
+    kind: html
+    base_url: https://www.mymarket.ma
+    search_path: /search
+    query_param: q
+    card_selector: .product-card, .product-item, article
+    title_selector: .product-title, .product-item-name, h2, h3
+    price_selector: .sale-price, .current-price, .price
+    link_selector: a[href]
+    image_selector: img
+    product_url_exclude: [/search, /cart, /account]
+    unavailable_text: [épuisé, rupture, indisponible]
+
+  # Boutiques sectorielles disponibles mais désactivées pour le MacBook suivi.
+  decathlon:
+    enabled: false
+    kind: html
+    base_url: https://www.decathlon.ma
+    search_path: /search
+    query_param: query
+    card_selector: .product-card, article
+    title_selector: .product-title, h2, h3
+    price_selector: .price
+    link_selector: a[href*='/p/']
+    product_url_include: [/p/]
+
+  ikea:
+    enabled: false
+    kind: html
+    base_url: https://www.ikea.com
+    search_path: /ma/fr/search/
+    query_param: q
+    card_selector: .plp-fragment-wrapper, article
+    title_selector: .plp-price-module__product-name, h2, h3
+    price_selector: .plp-price__integer, .price
+    link_selector: a[href*='/p/']
+    product_url_include: [/p/]
+
+  mafiawaystore:
+    enabled: false
+    kind: html
+    base_url: https://mafiawaystore.com
+    search_path: /search
+    query_param: q
+    card_selector: .card-wrapper, .product-card, article
+    title_selector: .card__heading, .product-title, h2, h3
+    price_selector: .price-item--sale, .price-item--regular, .price
+    link_selector: a[href*='/products/']
+    product_url_include: [/products/]
+
+  bringo:
+    enabled: false
+    kind: html
+    base_url: https://www.bringo.ma
+    search_path: /search
+    query_param: q
+    card_selector: .product-card, article
+    title_selector: .product-title, h2, h3
+    price_selector: .price
+    link_selector: a[href]
+
+  defacto:
+    enabled: false
+    kind: html
+    base_url: https://www.defacto.com
+    search_path: /fr-ma/search
+    query_param: q
+    card_selector: .product-card, article
+    title_selector: .product-title, h2, h3
+    price_selector: .price
+    link_selector: a[href]
+
+  palmarosa:
+    enabled: false
+    kind: html
+    base_url: https://palmarosa.ma
+    search_path: /search
+    query_param: q
+    card_selector: .product-card, article
+    title_selector: .product-title, h2, h3
+    price_selector: .price
+    link_selector: a[href]
+
+  planetsport:
+    enabled: false
+    kind: html
+    base_url: https://planetsport.ma
+    search_path: /search
+    query_param: q
+    card_selector: .product-card, article
+    title_selector: .product-title, h2, h3
+    price_selector: .price
+    link_selector: a[href]
+
+  # Place de marché d'occasion : désactivée par défaut (vendeurs et état variables).
+  avito:
+    enabled: false
+    kind: html
+    base_url: https://www.avito.ma
+    search_path: /fr/maroc
+    query_param: q
+    card_selector: article
+    title_selector: h2, h3
+    price_selector: "[data-testid='price'], .price"
+    link_selector: a[href]
