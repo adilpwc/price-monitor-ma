@@ -142,21 +142,31 @@ async def _monitor_product(
             affordable = selected and offer.available and offer.price <= product.max_price
             matched += int(selected)
             under_threshold += int(affordable)
+            if not affordable:
+                LOGGER.debug(
+                    "Offre ignorée site=%s prix=%s %s score=%.1f disponible=%s "
+                    "seuil=%s titre=%s",
+                    scraper.name,
+                    offer.price,
+                    _safe_log(offer.currency, 12),
+                    offer.match_score,
+                    offer.available,
+                    product.max_price,
+                    _safe_log(offer.title, 180),
+                )
+                continue
+
             LOGGER.info(
-                "Offre site=%s prix=%s %s score=%.1f disponible=%s retenue=%s "
-                "sous_seuil=%s titre=%s url=%s",
+                "Offre sous seuil site=%s prix=%s %s seuil=%s score=%.1f "
+                "titre=%s url=%s",
                 scraper.name,
                 offer.price,
                 _safe_log(offer.currency, 12),
+                product.max_price,
                 offer.match_score,
-                offer.available,
-                selected,
-                affordable,
                 _safe_log(offer.title, 180),
                 _safe_log(offer.url),
             )
-            if not selected:
-                continue
             decision = store.decide_alert(
                 product_id,
                 offer,
