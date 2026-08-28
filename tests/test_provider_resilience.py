@@ -31,7 +31,9 @@ def test_http_403_is_not_retried_and_is_explicit(settings: Settings) -> None:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     scraper = HtmlScraper(site, settings.http, client)
     with pytest.raises(ScraperError, match="HTTP 403 accès automatisé refusé"):
-        asyncio.run(scraper.search(ProductConfig("MacBook Air M2", Decimal("10000"))))
+        asyncio.run(
+            scraper.search(ProductConfig("MacBook Air M2", Decimal("10000")))
+        )
     assert calls == 1
     asyncio.run(client.aclose())
 
@@ -55,7 +57,10 @@ def test_product_urls_are_canonicalized_and_external_domains_rejected(
       <div class="prc">1 MAD</div>
     </article>
     """
-    offers = scraper.parse(html, ProductConfig("MacBook Air M2", Decimal("10000")))
+    offers = scraper.parse(
+        html,
+        ProductConfig("MacBook Air M2", Decimal("10000")),
+    )
     assert len(offers) == 1
     assert offers[0].url == f"{site.base_url}/p/macbook?variant=256"
     asyncio.run(scraper.aclose())
@@ -64,9 +69,24 @@ def test_product_urls_are_canonicalized_and_external_domains_rejected(
 @pytest.mark.parametrize(
     ("site_name", "card_class", "title_class", "product_path"),
     [
-        ("biougnach", "product-miniature", "product-title", "/p/macbook-air-m2"),
-        ("electrosalam", "card-wrapper", "card__heading", "/products/macbook-air-m2"),
-        ("mymarket", "product-card", "product-title", "/p/macbook-air-m2"),
+        (
+            "biougnach",
+            "product-miniature",
+            "product-title",
+            "/p/macbook-air-m2",
+        ),
+        (
+            "electrosalam",
+            "card-wrapper",
+            "card__heading",
+            "/products/macbook-air-m2",
+        ),
+        (
+            "mymarket",
+            "product-card",
+            "product-title",
+            "/p/macbook-air-m2",
+        ),
     ],
 )
 def test_new_active_provider_fixtures(
